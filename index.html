@@ -488,15 +488,19 @@ $('make').addEventListener('click', async () => {
     $('make').disabled = false; return;
   }
 
+  // 사용자 ZIP 입력을 GIF 내부 파일명 prefix로 사용 (PNG 도구와 일관성)
+  const customZip = $('zipName').value.trim();
+  const prefixBase = (customZip || 'gif').replace(/[\/\\:*?"<>|]/g, '_').replace(/\.zip$/i, '');
+
   for (let i = 0; i < folders.length; i++) {
     const folder = folders[i];
     const label = `[${String(i+1).padStart(2,'0')}/${folders.length}] ${folder.name}`;
     log(`${label} 인코딩 중…`);
     try {
       const blob = await makeGif(folder, width, height, fps, sequence, workerUrl);
-      const safeName = folder.name.replace(/[\/\\:*?"<>|]/g, '_');
-      let finalName = safeName, n = 2;
-      while (usedNames.has(finalName)) finalName = `${safeName} (${n++})`;
+      const safeFolder = folder.name.replace(/[\/\\:*?"<>|]/g, '_');
+      let finalName = `${prefixBase}_${safeFolder}`, n = 2;
+      while (usedNames.has(finalName)) finalName = `${prefixBase}_${safeFolder} (${n++})`;
       usedNames.add(finalName);
       zip.file(`${finalName}.gif`, blob);
       log(`  ✅ ${finalName}.gif (${(blob.size/1024).toFixed(1)} KB)`, 'ok');
