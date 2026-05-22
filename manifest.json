@@ -1,12 +1,12 @@
 {
-  "name": "[쥐냥] 오지큐 GIF 메이커 (클립스튜디오 전용)",
+  "name": "[쥐냥] 오지큐 gif 메이커 (클립스튜디오 전용)",
   "short_name": "오지큐gif클튜",
   "description": "클립스튜디오 PSD → 폴더별 740×640 GIF → ZIP 자동 묶음",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#fbbf24",
+  "theme_color": "#34d399",
   "lang": "ko",
   "icons": [
     {
