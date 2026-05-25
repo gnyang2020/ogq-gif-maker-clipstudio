@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>[쥐냥]오지큐 gif 메이커_클튜</title>
+<title>[쥐냥]오지큐 gif 메이커</title>
 <link rel="icon" type="image/png" href="favicon.png">
 
 <!-- PWA: 홈 화면에 추가하면 풀스크린 앱처럼 동작 -->
@@ -11,18 +11,18 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="오지큐gif클튜">
+<meta name="apple-mobile-web-app-title" content="오지큐gif">
 <meta name="theme-color" content="#34d399">
 
 <!-- 카카오톡·SNS 공유 미리보기 (OpenGraph) -->
 <meta property="og:type" content="website">
-<meta property="og:title" content="[쥐냥]오지큐 gif 메이커_클튜">
-<meta property="og:description" content="클립스튜디오 PSD → 폴더별 740×640 GIF → ZIP 자동 묶음">
-<meta property="og:image" content="https://ogq-gif-maker-clipstudio.vercel.app/favicon.png">
+<meta property="og:title" content="[쥐냥]오지큐 gif 메이커">
+<meta property="og:description" content="클립스튜디오·프로크리에이트 PSD → GIF + 메인·탭 이미지 → ZIP 자동 묶음">
+<meta property="og:image" content="https://ogq-gif-maker.vercel.app/favicon.png">
 <meta property="og:image:width" content="1080">
 <meta property="og:image:height" content="1080">
 <meta property="og:image:type" content="image/png">
-<meta property="og:url" content="https://ogq-gif-maker-clipstudio.vercel.app/">
+<meta property="og:url" content="https://ogq-gif-maker.vercel.app/">
 <meta property="og:locale" content="ko_KR">
 <style>
   * { box-sizing: border-box; }
@@ -81,6 +81,18 @@
     display: none; align-items: center; justify-content: center;
   }
   .clear-x:hover { background: rgba(17,24,39,.82); }
+  .mode-bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+  .mode-bar .mode-label { font-size:12px; color:#6b7280; font-weight:600; }
+  .mode-pill {
+    display:inline-flex; flex-direction:column; align-items:center; line-height:1.15;
+    padding:8px 18px; border-radius:999px; border:1.5px solid #d1d5db;
+    background:#fff; color:#6b7280; font-size:13px; font-weight:700; cursor:pointer;
+    transition: border-color .15s, color .15s, background .15s, transform .1s;
+  }
+  .mode-pill small { font-size:10px; font-weight:600; opacity:.75; margin-top:2px; }
+  .mode-pill:hover { border-color:#10b981; color:#111827; transform: translateY(-1px); }
+  .mode-pill.active { background:#111827; color:#fff; border-color:#111827; }
+  .mode-auto { font-size:11px; color:#10b981; font-weight:700; margin-left:auto; }
   .drop .ico { font-size: 32px; margin-bottom: 8px; }
   .drop .hint { color: #6b7280; font-size: 13px; margin-top: 6px; }
   .drop .name { color: #111827; font-weight: 600; margin-top: 8px; }
@@ -119,8 +131,8 @@
 </head>
 <body>
 
-<h1>[쥐냥]오지큐 gif 메이커_클튜</h1>
-<div class="sub">클립스튜디오 PSD → GIF 24장 + 메인·탭 이미지 → ZIP 자동 묶음</div>
+<h1>[쥐냥]오지큐 gif 메이커</h1>
+<div class="sub">클립스튜디오·프로크리에이트 PSD → GIF + 메인·탭 이미지 → ZIP 자동 묶음</div>
 
 <div class="card">
   <h2>⚙️ 설정</h2>
@@ -166,13 +178,19 @@
 
 <div class="card">
   <h2>📂 PSD 파일</h2>
+  <div class="mode-bar">
+    <span class="mode-label">입력 모드</span>
+    <button type="button" class="mode-pill active" id="modeClip">클립스튜디오<small>PSD 1개 · 폴더=스티커</small></button>
+    <button type="button" class="mode-pill" id="modePro">프로크리에이트<small>PSD 여러 개 · 파일=스티커</small></button>
+    <span class="mode-auto" id="modeAuto"></span>
+  </div>
   <div class="drop" id="drop">
     <button type="button" class="clear-x" id="clearPsd" title="제거">×</button>
     <div class="ico">📁</div>
-    <div>여기에 PSD 파일을 드래그하거나 클릭해서 선택하세요</div>
-    <div class="hint">예: 귀여운 곰이곰이 2.psd</div>
+    <div id="dropTitle">여기에 PSD 파일을 드래그하거나 클릭해서 선택하세요</div>
+    <div class="hint" id="dropHint">클튜는 1개, 프크는 여러 개(보통 24개) 한꺼번에 넣어도 돼요</div>
     <div class="name" id="fileName"></div>
-    <input type="file" id="psdFile" accept=".psd" style="display:none">
+    <input type="file" id="psdFile" accept=".psd" multiple style="display:none">
   </div>
 </div>
 
@@ -247,7 +265,10 @@
 const $ = (id) => document.getElementById(id);
 const logEl = $('log');
 const barEl = $('bar');
-let psdData = null;
+let psdFiles = [];        // [{ name, psd }] — 클튜: 1개, 프크: 여러 개
+let mode = 'clipstudio';  // 'clipstudio' | 'procreate'
+let modeManual = false;   // 모드 버튼을 직접 눌렀으면 자동 감지 안 함
+let zipNameSource = null; // null|'user'|'psd'|'png' — 이름 우선순위: user > psd > png
 let workerBlobUrl = null;
 
 function log(msg, cls = '') {
@@ -276,10 +297,29 @@ drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add(
 drop.addEventListener('dragleave', () => drop.classList.remove('over'));
 drop.addEventListener('drop', e => {
   e.preventDefault(); drop.classList.remove('over');
-  if (e.dataTransfer.files[0]) loadPsd(e.dataTransfer.files[0]);
+  const psds = [...e.dataTransfer.files].filter(f => /\.psd$/i.test(f.name));
+  if (psds.length) loadPsds(psds);
 });
 $('psdFile').addEventListener('change', e => {
-  if (e.target.files[0]) loadPsd(e.target.files[0]);
+  const psds = [...e.target.files].filter(f => /\.psd$/i.test(f.name));
+  if (psds.length) loadPsds(psds);
+  e.target.value = '';
+});
+
+// 입력 모드 (클튜/프크) — 동그란 버튼: 자동 감지 + 수동 전환
+function setMode(m, manual) {
+  mode = m;
+  if (manual) { modeManual = true; $('modeAuto').textContent = ''; }
+  $('modeClip').classList.toggle('active', m === 'clipstudio');
+  $('modePro').classList.toggle('active', m === 'procreate');
+  updatePsdInfo();
+}
+$('modeClip').addEventListener('click', () => setMode('clipstudio', true));
+$('modePro').addEventListener('click', () => setMode('procreate', true));
+if (/[?&]mode=pro/i.test(location.search)) setMode('procreate', true);   // 딥링크
+// 사용자가 ZIP 이름을 직접 입력하면 자동 채움이 못 덮어쓰게 표시
+$('zipName').addEventListener('input', () => {
+  zipNameSource = $('zipName').value.trim() ? 'user' : null;
 });
 
 function hasAnyCanvas(node) {
@@ -299,62 +339,66 @@ function getFrameNodes(folder) {
   return (folder.children || []).filter(c => c.canvas || (c.children && hasAnyCanvas(c)));
 }
 
-async function loadPsd(file) {
-  clearLog();
-  $('fileName').textContent = file.name;
-  $('clearPsd').style.display = 'flex';
-  $('make').disabled = true;
-  // PSD 파일명에서 .psd 떼어내 ZIP 이름 입력란에 기본값으로 채움 (사용자가 비웠거나 안 수정했을 때)
-  const baseName = file.name.replace(/\.psd$/i, '');
-  if (!$('zipName').value) $('zipName').value = baseName;
-  log(`📂 파일 로딩: ${file.name} (${(file.size/1024/1024).toFixed(2)} MB)`);
-  try {
-    const buffer = await file.arrayBuffer();
-    psdData = agPsd.readPsd(buffer, {
-      skipLayerImageData: false,
-      skipCompositeImageData: true,
-      skipThumbnail: true,
-    });
-    log(`✅ PSD 파싱 완료: ${psdData.width}×${psdData.height}`, 'ok');
+async function loadPsds(files) {
+  for (const file of files) {
+    if (psdFiles.some(p => p.name === file.name)) continue;  // 같은 이름 중복 스킵
+    log(`📂 로딩: ${file.name} (${(file.size/1024/1024).toFixed(2)} MB)`);
+    try {
+      const buffer = await file.arrayBuffer();
+      const psd = agPsd.readPsd(buffer, {
+        skipLayerImageData: false,
+        skipCompositeImageData: true,
+        skipThumbnail: true,
+      });
+      psdFiles.push({ name: file.name, psd });
+    } catch (e) {
+      log(`❌ ${file.name} 파싱 실패: ${e.message}`, 'err');
+      console.error(e);
+    }
+  }
+  if (!psdFiles.length) { refreshMakeBtn(); return; }
 
-    const topFolders = (psdData.children || []).filter(c => c.children && c.children.length);
-    log(`📁 최상위 폴더 ${topFolders.length}개:`);
-    topFolders.forEach((f, i) => {
+  // 자동 모드 감지 (사용자가 버튼 누르기 전까지): 2개 이상이면 프크
+  if (!modeManual) {
+    mode = psdFiles.length >= 2 ? 'procreate' : 'clipstudio';
+    $('modeClip').classList.toggle('active', mode === 'clipstudio');
+    $('modePro').classList.toggle('active', mode === 'procreate');
+    $('modeAuto').textContent = `자동: ${psdFiles.length}개 → ${mode === 'procreate' ? '프크' : '클튜'}`;
+  }
+
+  $('clearPsd').style.display = 'flex';
+  // ZIP 이름: 클튜(1개)면 PSD명 우선 — PNG가 먼저 채웠어도 PSD로 덮어씀 (단, 사용자 직접 입력은 유지)
+  if (mode === 'clipstudio' && zipNameSource !== 'user') {
+    $('zipName').value = psdFiles[0].name.replace(/\.psd$/i, '');
+    zipNameSource = 'psd';
+  }
+  updatePsdInfo();
+  refreshMakeBtn();
+}
+
+// 현재 모드 기준으로 PSD 요약 + 스티커별 프레임 수를 로그에 표시
+function updatePsdInfo() {
+  if (!psdFiles.length) { $('fileName').textContent = ''; return; }
+  clearLog();
+  if (mode === 'procreate') {
+    $('fileName').textContent = `프크 모드 · PSD ${psdFiles.length}개 (파일 1개 = 스티커 1개)`;
+    log(`🟣 프로크리에이트 모드 — PSD ${psdFiles.length}개 → GIF ${psdFiles.length}개`, 'ok');
+    psdFiles.forEach((f, i) => {
+      const frames = getFrameNodes(f.psd);
+      log(`   ${String(i+1).padStart(2,'0')}. ${f.name} — 프레임 ${frames.length}장`, frames.length ? 'dim' : 'err');
+    });
+  } else {
+    const psd = psdFiles[0].psd;
+    const folders = (psd.children || []).filter(c => c.children && c.children.length);
+    $('fileName').textContent = `클튜 모드 · ${psdFiles[0].name} (폴더 ${folders.length}개 = 스티커)`;
+    if (psdFiles.length > 1) log(`⚠️ 클튜 모드는 첫 번째 PSD만 사용해요 (나머지 ${psdFiles.length - 1}개 무시)`, 'err');
+    log(`🟢 클립스튜디오 모드 — 폴더 ${folders.length}개 → GIF ${folders.length}개`, 'ok');
+    folders.forEach((f, i) => {
       const frames = getFrameNodes(f);
       const leafTotal = countLeafCanvases(f);
-      const sub = frames.length > 0
-        ? `프레임 ${frames.length}장 (내부 그림 총 ${leafTotal}장)`
-        : `프레임 0장 ⚠️`;
+      const sub = frames.length > 0 ? `프레임 ${frames.length}장 (그림 총 ${leafTotal}장)` : `프레임 0장 ⚠️`;
       log(`   ${String(i+1).padStart(2,'0')}. ${f.name} — ${sub}`, frames.length ? 'dim' : 'err');
     });
-
-    // 상세 트리 (2단계까지)
-    log(`\n🔍 상세 구조 (2단계까지):`, 'dim');
-    topFolders.forEach((f, i) => {
-      log(`   [${String(i+1).padStart(2,'0')}] 📁 ${f.name}`, 'dim');
-      (f.children || []).forEach((c, j) => {
-        const icon = c.canvas ? '🖼' : (c.children ? '📁' : '⬜');
-        const meta = c.canvas
-          ? `[${c.canvas.width}×${c.canvas.height}]`
-          : (c.children ? `(자식 ${c.children.length}개, 그림 ${countLeafCanvases(c)}장)` : '');
-        const flags = [
-          c.clipping ? '📎클립' : '',
-          (c.opacity != null && c.opacity < 255) ? `α${Math.round(c.opacity/255*100)}%` : '',
-        ].filter(Boolean).join(' ');
-        log(`        ${String(j+1).padStart(2,'0')}. ${icon} ${c.name || '(이름 없음)'} ${meta} ${flags}`, 'dim');
-      });
-    });
-
-    if (topFolders.length === 0) {
-      log(`⚠️ 폴더(그룹)가 없습니다.`, 'err');
-      psdData = null; refreshMakeBtn();
-      return;
-    }
-    refreshMakeBtn();
-  } catch (e) {
-    log(`❌ PSD 파싱 실패: ${e.message}`, 'err');
-    console.error(e);
-    psdData = null; refreshMakeBtn();
   }
 }
 
@@ -545,7 +589,7 @@ let tabImgCanvas = null;
 
 // GIF·메인·탭 중 하나라도 준비되면 버튼 활성화
 function refreshMakeBtn() {
-  $('make').disabled = !(psdData || mainImgCanvas || tabImgCanvas);
+  $('make').disabled = !(psdFiles.length || mainImgCanvas || tabImgCanvas);
 }
 
 /* 매직팟에서 가져온 테두리(아웃라인) 알고리즘 — 원형 커널 dilation, PNG용 */
@@ -672,10 +716,10 @@ function loadImagePng(file, which) {
     if (which === 'main') { mainImgCanvas = c; $('mainName').textContent = file.name; $('clearMain').style.display = 'flex'; }
     else { tabImgCanvas = c; $('tabName').textContent = file.name; $('clearTab').style.display = 'flex'; }
     log(`🖼️ ${which === 'main' ? '메인' : '탭'} 이미지 로드: ${file.name} (${img.naturalWidth}×${img.naturalHeight})`, 'ok');
-    // ZIP/이름 칸이 비어 있으면 PNG 파일명에서 기준 이름 자동 채움 (_메인/_탭 접미사 제거)
-    if (!$('zipName').value) {
+    // ZIP/이름: 아무것도 안 정해졌을 때만 PNG명에서 채움 (PSD·사용자 입력이 있으면 양보 — PSD 우선)
+    if (zipNameSource === null) {
       const base = file.name.replace(/\.png$/i, '').replace(/[ _\-]*(메인|탭|main|tab)$/i, '').trim();
-      if (base) $('zipName').value = base;
+      if (base) { $('zipName').value = base; zipNameSource = 'png'; }
     }
     refreshMakeBtn();
   };
@@ -698,9 +742,20 @@ wirePngDrop('dropTab', 'tabFile', 'tab');
 
 /* 업로드 취소(×) 버튼 — 칸 우상단 */
 function clearSlot(which) {
-  if (which === 'psd')       { psdData = null;      $('fileName').textContent = ''; $('psdFile').value  = ''; $('clearPsd').style.display  = 'none'; }
-  else if (which === 'main') { mainImgCanvas = null; $('mainName').textContent = ''; $('mainFile').value = ''; $('clearMain').style.display = 'none'; }
-  else                       { tabImgCanvas = null;  $('tabName').textContent = '';  $('tabFile').value  = ''; $('clearTab').style.display  = 'none'; }
+  if (which === 'psd') {
+    psdFiles = []; modeManual = false;
+    $('fileName').textContent = ''; $('psdFile').value = '';
+    $('clearPsd').style.display = 'none'; $('modeAuto').textContent = '';
+    if (zipNameSource === 'psd') { zipNameSource = null; $('zipName').value = ''; }
+  } else if (which === 'main') {
+    mainImgCanvas = null; $('mainName').textContent = ''; $('mainFile').value = '';
+    $('clearMain').style.display = 'none';
+    if (zipNameSource === 'png' && !tabImgCanvas) { zipNameSource = null; $('zipName').value = ''; }
+  } else {
+    tabImgCanvas = null; $('tabName').textContent = ''; $('tabFile').value = '';
+    $('clearTab').style.display = 'none';
+    if (zipNameSource === 'png' && !mainImgCanvas) { zipNameSource = null; $('zipName').value = ''; }
+  }
   refreshMakeBtn();
 }
 $('clearPsd').addEventListener('click',  e => { e.stopPropagation(); clearSlot('psd'); });
@@ -709,7 +764,7 @@ $('clearTab').addEventListener('click',  e => { e.stopPropagation(); clearSlot('
 
 /* ───────────── 만들기 (GIF·메인·탭 중 있는 것만 처리) ───────────── */
 $('make').addEventListener('click', async () => {
-  if (!psdData && !mainImgCanvas && !tabImgCanvas) return;
+  if (!psdFiles.length && !mainImgCanvas && !tabImgCanvas) return;
   $('make').disabled = true;
   setProgress(0);
 
@@ -720,16 +775,16 @@ $('make').addEventListener('click', async () => {
   const zip = new JSZip();
   let fileCount = 0;
 
-  // 1) PSD → GIF 24장
-  if (psdData) {
+  // 1) PSD → GIF (클튜: 폴더=스티커 / 프크: 파일=스티커)
+  if (psdFiles.length) {
     let fps = parseInt($('fps').value) || 18;
     if (fps % 2 !== 0) fps += 1;
     const sequence = parseSequence($('sequence').value);
     const strokeRadius = Math.max(0, Math.min(20, parseInt($('strokeNum').value) || 0));
 
-    log(`\n🚀 GIF 시작 (FPS ${fps} / 캐릭터 외곽선 ${strokeRadius}px / ${width}×${height} / 배경 투명)`);
+    log(`\n🚀 GIF 시작 (${mode === 'procreate' ? '프크' : '클튜'} / FPS ${fps} / 외곽선 ${strokeRadius}px / ${width}×${height})`);
     if (sequence) log(`   ↳ 시퀀스 적용: [${sequence.join(', ')}] (${sequence.length}프레임)`, 'ok');
-    else log(`   ↳ 시퀀스 없음 — PSD 레이어 순서 그대로`, 'dim');
+    else log(`   ↳ 시퀀스 없음 — 프레임 순서 그대로`, 'dim');
 
     let workerUrl;
     try { workerUrl = await getWorkerUrl(); }
@@ -738,23 +793,31 @@ $('make').addEventListener('click', async () => {
       $('make').disabled = false; return;
     }
 
-    const folders = (psdData.children || []).filter(c => c.children && c.children.length);
+    // 스티커 목록 — { node: 프레임들을 가진 노드, gifName }
+    let stickers;
+    if (mode === 'procreate') {
+      stickers = psdFiles.map(f => ({ node: f.psd, gifName: f.name.replace(/\.psd$/i, '') }));
+    } else {
+      const psd = psdFiles[0].psd;
+      const folders = (psd.children || []).filter(c => c.children && c.children.length);
+      stickers = folders.map(fo => ({ node: fo, gifName: `${prefixBase}_${fo.name}` }));
+    }
+
     const usedNames = new Set();
-    for (let i = 0; i < folders.length; i++) {
-      const folder = folders[i];
-      log(`[${String(i+1).padStart(2,'0')}/${folders.length}] ${folder.name} 인코딩 중…`);
+    for (let i = 0; i < stickers.length; i++) {
+      const st = stickers[i];
+      log(`[${String(i+1).padStart(2,'0')}/${stickers.length}] ${st.gifName} 인코딩 중…`);
       try {
-        const blob = await makeGif(folder, width, height, fps, sequence, workerUrl, strokeRadius);
-        const safeFolder = folder.name.replace(/[\/\\:*?"<>|]/g, '_');
-        let finalName = `${prefixBase}_${safeFolder}`, n = 2;
-        while (usedNames.has(finalName)) finalName = `${prefixBase}_${safeFolder} (${n++})`;
-        usedNames.add(finalName);
-        zip.file(`${finalName}.gif`, blob); fileCount++;
-        log(`  ✅ ${finalName}.gif (${(blob.size/1024).toFixed(1)} KB)`, 'ok');
+        const blob = await makeGif(st.node, width, height, fps, sequence, workerUrl, strokeRadius);
+        let nm = st.gifName.replace(/[\/\\:*?"<>|]/g, '_'); const baseNm = nm; let n = 2;
+        while (usedNames.has(nm)) nm = `${baseNm} (${n++})`;
+        usedNames.add(nm);
+        zip.file(`${nm}.gif`, blob); fileCount++;
+        log(`  ✅ ${nm}.gif (${(blob.size/1024).toFixed(1)} KB)`, 'ok');
       } catch (e) {
         log(`  ❌ 실패: ${e.message}`, 'err');
       }
-      setProgress((i + 1) / folders.length * 0.85);
+      setProgress((i + 1) / stickers.length * 0.85);
     }
   }
 

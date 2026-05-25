@@ -1,7 +1,7 @@
 {
-  "name": "[쥐냥] 오지큐 gif 메이커 (클립스튜디오 전용)",
-  "short_name": "오지큐gif클튜",
-  "description": "클립스튜디오 PSD → 폴더별 740×640 GIF → ZIP 자동 묶음",
+  "name": "[쥐냥] 오지큐 gif 메이커",
+  "short_name": "오지큐gif",
+  "description": "클립스튜디오·프로크리에이트 PSD → GIF + 메인·탭 이미지 → ZIP 자동 묶음",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
