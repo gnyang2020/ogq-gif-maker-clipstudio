@@ -518,15 +518,30 @@ function compositeChildren(children, dstCtx, width, height) {
 }
 
 // 프레임을 알파 그대로 캔버스에 렌더 (합성 + 외곽선까지, 투명키 치환 전 단계)
-function renderFrameRGBA(layer, width, height, strokeRadius) {
-  // 1. 원본 그림을 임시 캔버스에 합성 (클리핑 마스크 포함)
-  const src = document.createElement('canvas');
-  src.width = width; src.height = height;
-  const srcCtx = src.getContext('2d');
+function renderFrameRGBA(layer, width, height, strokeRadius, psdW, psdH) {
+  // 1. PSD 원본 크기로 먼저 합성 (좌표·잘림 보존). psdW/H 미지정 시 target과 동일로 가정(기존 동작).
+  const nativeW = psdW || width;
+  const nativeH = psdH || height;
+  const native = document.createElement('canvas');
+  native.width = nativeW; native.height = nativeH;
+  const natCtx = native.getContext('2d');
   if (layer.canvas) {
-    srcCtx.drawImage(layer.canvas, layer.left || 0, layer.top || 0);
+    natCtx.drawImage(layer.canvas, layer.left || 0, layer.top || 0);
   } else if (layer.children) {
-    compositeChildren(layer.children, srcCtx, width, height);
+    compositeChildren(layer.children, natCtx, nativeW, nativeH);
+  }
+
+  // 2. target W×H에 contain-fit (비율 유지, 가운데 정렬). 같으면 그대로.
+  let src;
+  if (nativeW === width && nativeH === height) {
+    src = native;
+  } else {
+    src = document.createElement('canvas');
+    src.width = width; src.height = height;
+    const sCtx = src.getContext('2d');
+    const sc = Math.min(width / nativeW, height / nativeH);
+    const dw = Math.round(nativeW * sc), dh = Math.round(nativeH * sc);
+    sCtx.drawImage(native, Math.round((width - dw) / 2), Math.round((height - dh) / 2), dw, dh);
   }
 
   // 결과 캔버스
@@ -534,7 +549,7 @@ function renderFrameRGBA(layer, width, height, strokeRadius) {
   canvas.width = width; canvas.height = height;
   const ctx = canvas.getContext('2d');
 
-  // strokeRadius > 0이면 외곽선 적용, 0이면 원본만
+  // strokeRadius > 0이면 외곽선 적용 (target 스케일 기준이라 입력 px 그대로 보장)
   if (strokeRadius > 0) {
     // 2. 마스크 캔버스: 그림 모양을 흰색으로 채움 (alpha 만 살림)
     const mask = document.createElement('canvas');
@@ -615,7 +630,7 @@ function parseSequence(text) {
   return nums.filter(n => Number.isInteger(n) && n >= 1);
 }
 
-async function makeGif(folder, width, height, fps, sequence, workerUrl, strokeRadius) {
+async function makeGif(folder, width, height, fps, sequence, workerUrl, strokeRadius, psdW, psdH) {
   return new Promise((resolve, reject) => {
     const delay = Math.max(20, Math.round(1000 / fps)); // ms
     const frameLayers = getFrameNodes(folder);
@@ -631,7 +646,7 @@ async function makeGif(folder, width, height, fps, sequence, workerUrl, strokeRa
     }
 
     // 1) 알파 그대로 모든 프레임 렌더 → 2) 그림에 안 쓰인 안전한 투명키 선택 → 3) 그 키로 GIF 생성
-    const rgbaFrames = ordered.map(fl => renderFrameRGBA(fl, width, height, strokeRadius));
+    const rgbaFrames = ordered.map(fl => renderFrameRGBA(fl, width, height, strokeRadius, psdW, psdH));
     const key = pickSafeKeyColor(rgbaFrames);
     log(`  🔑 투명키 자동 선택: rgb(${key.r},${key.g},${key.b}) (그림과 거리 ${key.dist})`, 'dim');
 
@@ -865,19 +880,20 @@ $('make').addEventListener('click', async () => {
     // 스티커 목록 — { node: 프레임들을 가진 노드, gifName }
     let stickers;
     if (mode === 'procreate') {
-      stickers = psdFiles.map(f => ({ node: f.psd, gifName: f.name.replace(/\.psd$/i, '') }));
+      stickers = psdFiles.map(f => ({ node: f.psd, gifName: f.name.replace(/\.psd$/i, ''), psdW: f.psd.width, psdH: f.psd.height }));
     } else {
       const psd = psdFiles[0].psd;
       const folders = (psd.children || []).filter(c => c.children && c.children.length);
-      stickers = folders.map(fo => ({ node: fo, gifName: `${prefixBase}_${fo.name}` }));
+      stickers = folders.map(fo => ({ node: fo, gifName: `${prefixBase}_${fo.name}`, psdW: psd.width, psdH: psd.height }));
     }
 
     const usedNames = new Set();
     for (let i = 0; i < stickers.length; i++) {
       const st = stickers[i];
       log(`[${String(i+1).padStart(2,'0')}/${stickers.length}] ${st.gifName} 인코딩 중…`);
+      if (st.psdW !== width || st.psdH !== height) log(`   ↳ ${st.psdW}×${st.psdH} → ${width}×${height} 자동 변환 (contain · 가운데 정렬)`, 'dim');
       try {
-        const blob = await makeGif(st.node, width, height, fps, sequence, workerUrl, strokeRadius);
+        const blob = await makeGif(st.node, width, height, fps, sequence, workerUrl, strokeRadius, st.psdW, st.psdH);
         let nm = st.gifName.replace(/[\/\\:*?"<>|]/g, '_'); const baseNm = nm; let n = 2;
         while (usedNames.has(nm)) nm = `${baseNm} (${n++})`;
         usedNames.add(nm);
